@@ -1,10 +1,12 @@
 import asyncio
+import datetime
 from typing import Optional
 
+import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, async_playwright, BrowserContext, Page
 
-from settings import settings, FileEntry
+from settings import settings, FileEntry, File
 
 
 class OkMckoWorker:
@@ -15,19 +17,20 @@ class OkMckoWorker:
     _context: Optional[BrowserContext] = None
     _page: Optional[Page] = None
     _mcko_files_list: Optional[list[FileEntry]] = None
+    _new_files: Optional[list[FileEntry]] = None
 
     def __init__(self):
         self._headless = settings.DEBUG
 
-    async def init(self):
+    async def _init(self):
         playwright = await async_playwright().start()
         self._browser = await playwright.chromium.launch(headless=self._headless is False)
         self._context = await self._browser.new_context()
         self._page = await self._context.new_page()
 
-    async def school_mos_ru_auth(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
+    async def _school_mos_ru_auth(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         if self._page is None:
-            await self.init()
+            await self._init()
         await self._page.goto(self._school_mos_ru_url)
         await self._page.wait_for_selector(".style_btn__3lIWs")
         await self._page.locator(".style_btn__3lIWs").click()
@@ -37,17 +40,17 @@ class OkMckoWorker:
         await self._page.locator("#bind").click()
         await self._page.wait_for_selector(".systems_Wrapper__1h8Fz")
 
-    async def okmcko_ru_auth(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
+    async def _okmcko_ru_auth(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         if self._page is None:
-            await self.init()
+            await self._init()
         if len(await self._context.cookies()) < 1:
-            await self.school_mos_ru_auth(login=login, password=password)
+            await self._school_mos_ru_auth(login=login, password=password)
         await self._page.get_by_text("Организация обучения", exact=True).click()
         await self._page.wait_for_selector(".T627UHU6")
         await self._page.get_by_text("Внешняя оценка", exact=True).click()
         await asyncio.sleep(1)
 
-    def parce_mcko_files_table(self, table_html: str):
+    def __parce_mcko_files_table(self, table_html: str):
         soup = BeautifulSoup(table_html, "html.parser")
         row_rows = soup.find_all("tr")
         self._mcko_files_list = []
@@ -56,23 +59,62 @@ class OkMckoWorker:
             if len(row_inn_list) > 0:
                 self._mcko_files_list.append(
                     FileEntry(
-                        date=row_inn_list[1],
                         filename=row_inn_list[2].strip("\xa0"),
                         comment=row_inn_list[3],
                     )
                 )
 
-    async def get_mcko_files_list(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
+    async def _get_mcko_files_list(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         if self._page is None:
-            await self.init()
+            await self._init()
         if len(await self._context.cookies()) < 1:
-            await self.school_mos_ru_auth(login=login, password=password)
-            await self.okmcko_ru_auth(login=login, password=password)
+            await self._school_mos_ru_auth(login=login, password=password)
+            await self._okmcko_ru_auth(login=login, password=password)
         await self._page.goto(self._okmcko_mos_ru_url)
         await self._page.locator("#content").get_by_role("link", name="Оценка качества образования").click()
         await self._page.locator("#content").get_by_role("link", name="Скачать файлы (download)").click()
-        self.parce_mcko_files_table(await self._page.locator(".tbl").evaluate("el => el.outerHTML"))
+        self.__parce_mcko_files_table(await self._page.locator(".tbl").evaluate("el => el.outerHTML"))
+
+    async def _choose_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
+        await self._get_mcko_files_list(login=login, password=password)
+        old_files = File.select().order_by(File.id.desc()).limit(10)
+        pydantic_old_files = [FileEntry(
+            filename=file.filename,
+            comment=file.comment
+        ) for file in old_files]
+        self._new_files = []
+        for file in self._mcko_files_list[:10]:
+            if file not in pydantic_old_files:
+                self._new_files.append(file)
+                File.create(
+                    filename=file.filename,
+                    comment=file.comment,
+                )
+
+    async def _download_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
+        await self._choose_new_files(login=login, password=password)
+        for file in self._new_files:
+            async with self._page.expect_download() as download_info:
+                await self._page.get_by_text(file.filename).click()
+            download = await download_info.value
+            await download.save_as(
+                f"./{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + download.suggested_filename)
+
+    async def send_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
+        await self._download_new_files(login=login, password=password)
+        for file in self._new_files:
+            document = open(f"./{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename, "rb")
+            url = f"https://api.telegram.org/bot{settings.MCKO_BOT_TOKEN}/sendDocument"
+            requests.post(
+                url, data={
+                    'chat_id': settings.CHAT_ID,
+                    'message_thread_id': settings.MESSAGE_THREAD_ID,
+                    'caption': file.comment
+                },
+                files={'document': document}
+            )
+            await asyncio.sleep(1)
 
     async def close(self):
-        await asyncio.sleep(50)
+        # await asyncio.sleep(50)
         await self._browser.close()

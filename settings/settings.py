@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     PASSWORD: str
     DEBUG: bool
     DWNLD_DIR_PATH: str
+    MCKO_BOT_TOKEN: str
+    CHAT_ID: str
+    MESSAGE_THREAD_ID: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
