@@ -1,7 +1,10 @@
 import asyncio
 import datetime
+import zipfile
+from pathlib import Path
 from typing import Optional
 
+import fitz
 import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, async_playwright, BrowserContext, Page
@@ -83,13 +86,14 @@ class OkMckoWorker:
             comment=file.comment
         ) for file in old_files]
         self._new_files = []
-        for file in self._mcko_files_list[:10]:
+        for file in self._mcko_files_list[:30]:
             if file not in pydantic_old_files:
-                self._new_files.append(file)
-                File.create(
-                    filename=file.filename,
-                    comment=file.comment,
-                )
+                if ("ДИАГНОСТИКА" in file.comment.upper() and "mcl" in file.filename) or ("diag" in file.filename):
+                    self._new_files.append(file)
+                    File.create(
+                        filename=file.filename,
+                        comment=file.comment,
+                    )
 
     async def _download_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         await self._choose_new_files(login=login, password=password)
@@ -114,6 +118,46 @@ class OkMckoWorker:
                 files={'document': document}
             )
             await asyncio.sleep(1)
+
+    async def decompress_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
+        await self._download_new_files(login=login, password=password)
+        for file in self._new_files:
+            source_file_path = f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename
+            dest_folder = f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/{file.filename}".strip(".zip")
+            try:
+                with zipfile.ZipFile(source_file_path, 'r') as zip_ref:
+                    zip_ref.extractall(dest_folder)
+            except FileNotFoundError:
+                print(f"Error: The file {source_file_path} was not found.")
+            except zipfile.BadZipFile:
+                print(f"Error: {source_file_path} is not a valid ZIP file.")
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+            pdf_files = []
+            path = Path(dest_folder)
+            for pdf_file in path.glob("**/*.pdf"):
+                pdf_files.append(pdf_file.absolute())
+            for pdf in pdf_files:
+                doc = fitz.open(pdf)
+                pdftext = ""
+                for page in doc:
+                    pdftext += page.get_text()
+                pdf_lines = pdftext.split("\n")
+                for line in pdf_lines:
+                    if line.startswith("ЛИСТ ФИКСАЦИИ РАБОЧИХ МЕСТ"):
+                        break
+                    if line.startswith("этаж "):
+                        print(line)
+                    if line.startswith("город "):
+                        print(line)
+                    if line.startswith("Адрес сайта диагностики:"):
+                        print(line)
+                    if line.startswith("IP:"):
+                        print(line)
+                        break
+                # print(pdftext)
+                print("===========================")
+                # await asyncio.sleep(60)
 
     async def close(self):
         # await asyncio.sleep(50)
