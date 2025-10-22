@@ -1,6 +1,8 @@
 import asyncio
 import datetime
+import smtplib
 import zipfile
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Optional
 
@@ -10,6 +12,57 @@ from bs4 import BeautifulSoup
 from playwright.async_api import Browser, async_playwright, BrowserContext, Page
 
 from settings import settings, FileEntry, File
+
+
+def parse_pdf_file(pdf_path: Path) -> str:
+    doc = fitz.open(pdf_path)
+    pdftext = ""
+    message = ""
+    for page in doc:
+        pdftext += page.get_text()
+    pdf_lines = pdftext.split("\n")
+    for line in pdf_lines:
+        if line.startswith("ЛИСТ ФИКСАЦИИ РАБОЧИХ МЕСТ"):
+            break
+        if line.startswith("этаж "):
+            message += line + "\n"
+        if line.startswith("город "):
+            message += line + "\n"
+        if line.startswith("Адрес сайта диагностики:"):
+            message += line + "\n"
+        if line.startswith("IP:"):
+            message += line + "\n"
+            break
+    return message
+
+
+async def send_diag_links(file: FileEntry):
+    source_file_path = f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename
+    dest_folder = f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/{file.filename}".strip(".zip")
+    try:
+        with zipfile.ZipFile(source_file_path, 'r') as zip_ref:
+            zip_ref.extractall(dest_folder)
+    except FileNotFoundError:
+        print(f"Error: The file {source_file_path} was not found.")
+    except zipfile.BadZipFile:
+        print(f"Error: {source_file_path} is not a valid ZIP file.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    pdf_files = []
+    path = Path(dest_folder)
+    for pdf_file in path.glob("**/*.pdf"):
+        pdf_files.append(pdf_file.absolute())
+    for pdf in pdf_files:
+        message = parse_pdf_file(pdf)
+        url = f"https://api.telegram.org/bot{settings.MCKO_BOT_TOKEN}/sendMessage"
+        requests.post(
+            url, data={
+                'chat_id': settings.CHAT_ID,
+                'message_thread_id': settings.MESSAGE_THREAD_ID,
+                'text': message
+            }
+        )
+        await asyncio.sleep(1)
 
 
 class OkMckoWorker:
@@ -80,20 +133,19 @@ class OkMckoWorker:
 
     async def _choose_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         await self._get_mcko_files_list(login=login, password=password)
-        old_files = File.select().order_by(File.id.desc()).limit(10)
+        old_files = File.select()
         pydantic_old_files = [FileEntry(
             filename=file.filename,
             comment=file.comment
         ) for file in old_files]
         self._new_files = []
-        for file in self._mcko_files_list[:30]:
+        for file in self._mcko_files_list[:10]:
             if file not in pydantic_old_files:
-                if ("ДИАГНОСТИКА" in file.comment.upper() and "mcl" in file.filename) or ("diag" in file.filename):
-                    self._new_files.append(file)
-                    File.create(
-                        filename=file.filename,
-                        comment=file.comment,
-                    )
+                self._new_files.append(file)
+                File.create(
+                    filename=file.filename,
+                    comment=file.comment,
+                )
 
     async def _download_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         await self._choose_new_files(login=login, password=password)
@@ -107,57 +159,35 @@ class OkMckoWorker:
     async def send_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         await self._download_new_files(login=login, password=password)
         for file in self._new_files:
-            document = open(f"./{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename, "rb")
-            url = f"https://api.telegram.org/bot{settings.MCKO_BOT_TOKEN}/sendDocument"
-            requests.post(
-                url, data={
-                    'chat_id': settings.CHAT_ID,
-                    'message_thread_id': settings.MESSAGE_THREAD_ID,
-                    'caption': file.comment
-                },
-                files={'document': document}
-            )
-            await asyncio.sleep(1)
+            sender_email = settings.SMTP_LOGIN
+            sender_password = settings.SMTP_PASSWORD  # Use environment variables or secure methods for passwords
+            receiver_email = settings.TARGET_EMAIL
+            subject = "Материалы из МЦКО"
+            body = f"<strong>Получены новые материалы из МЦКО. <br> {file.comment}</strong>"
 
-    async def decompress_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
-        await self._download_new_files(login=login, password=password)
-        for file in self._new_files:
-            source_file_path = f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename
-            dest_folder = f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/{file.filename}".strip(".zip")
+            email = EmailMessage()
+            email["From"] = sender_email
+            email["To"] = receiver_email
+            email["Subject"] = subject
+            email.set_content(body, subtype="html")
+
+            with open(f"./{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename, "rb") as f:
+                email.add_attachment(
+                    f.read(),
+                    filename=file.filename,
+                    maintype="application",
+                    subtype=file.filename.split(".")[-1]
+                )
             try:
-                with zipfile.ZipFile(source_file_path, 'r') as zip_ref:
-                    zip_ref.extractall(dest_folder)
-            except FileNotFoundError:
-                print(f"Error: The file {source_file_path} was not found.")
-            except zipfile.BadZipFile:
-                print(f"Error: {source_file_path} is not a valid ZIP file.")
+                with smtplib.SMTP_SSL(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
+                    server.login(sender_email, sender_password)
+                    server.sendmail(sender_email, receiver_email, email.as_string())
+                print("Email sent successfully")
             except Exception as e:
-                print(f"An unexpected error occurred: {e}")
-            pdf_files = []
-            path = Path(dest_folder)
-            for pdf_file in path.glob("**/*.pdf"):
-                pdf_files.append(pdf_file.absolute())
-            for pdf in pdf_files:
-                doc = fitz.open(pdf)
-                pdftext = ""
-                for page in doc:
-                    pdftext += page.get_text()
-                pdf_lines = pdftext.split("\n")
-                for line in pdf_lines:
-                    if line.startswith("ЛИСТ ФИКСАЦИИ РАБОЧИХ МЕСТ"):
-                        break
-                    if line.startswith("этаж "):
-                        print(line)
-                    if line.startswith("город "):
-                        print(line)
-                    if line.startswith("Адрес сайта диагностики:"):
-                        print(line)
-                    if line.startswith("IP:"):
-                        print(line)
-                        break
-                # print(pdftext)
-                print("===========================")
-                # await asyncio.sleep(60)
+                print(f"Error: {e}")
+            await asyncio.sleep(1)
+            if ("ДИАГНОСТИКА" in file.comment.upper() and "mcl" in file.filename) or ("diag" in file.filename):
+                await send_diag_links(file)
 
     async def close(self):
         # await asyncio.sleep(50)

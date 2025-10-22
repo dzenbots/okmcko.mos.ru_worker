@@ -9,7 +9,7 @@ async def main():
     worker = OkMckoWorker()
     try:
         while True:
-            await worker.decompress_new_files()
+            await worker.send_new_files()
             await asyncio.sleep(1)
     except:
         await worker.close()
