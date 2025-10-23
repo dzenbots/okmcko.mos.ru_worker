@@ -55,12 +55,15 @@ async def send_diag_links(file: FileEntry):
     for pdf in pdf_files:
         message = parse_pdf_file(pdf)
         url = f"https://api.telegram.org/bot{settings.MCKO_BOT_TOKEN}/sendMessage"
+        data = {
+            'chat_id': settings.CHAT_ID,
+            'text': message
+        }
+        if settings.MESSAGE_THREAD_ID is not None:
+            data['message_thread_id'] = settings.MESSAGE_THREAD_ID
         requests.post(
-            url, data={
-                'chat_id': settings.CHAT_ID,
-                'message_thread_id': settings.MESSAGE_THREAD_ID,
-                'text': message
-            }
+            url,
+            data=data
         )
         await asyncio.sleep(1)
 
@@ -182,7 +185,7 @@ class OkMckoWorker:
                 with smtplib.SMTP_SSL(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
                     server.login(sender_email, sender_password)
                     server.sendmail(sender_email, receiver_email, email.as_string())
-                print("Email sent successfully")
+                # print("Email sent successfully")
             except Exception as e:
                 print(f"Error: {e}")
             await asyncio.sleep(1)
