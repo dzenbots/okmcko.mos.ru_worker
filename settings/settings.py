@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,7 +10,7 @@ class Settings(BaseSettings):
     DWNLD_DIR_PATH: str
     MCKO_BOT_TOKEN: str
     CHAT_ID: str
-    MESSAGE_THREAD_ID: str = None
+    MESSAGE_THREAD_ID: Optional[str] = None
     SMTP_SERVER: str
     SMTP_PORT: str
     SMTP_LOGIN: str
