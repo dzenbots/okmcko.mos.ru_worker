@@ -187,7 +187,6 @@ class OkMckoWorker:
                 with smtplib.SMTP_SSL(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
                     server.login(sender_email, sender_password)
                     server.sendmail(sender_email, receiver_email, email.as_string())
-                # print("Email sent successfully")
             except Exception as e:
                 print(f"Error: {e}")
             await asyncio.sleep(1)
@@ -195,5 +194,4 @@ class OkMckoWorker:
                 await send_diag_links(file)
 
     async def close(self):
-        # await asyncio.sleep(50)
         await self._browser.close()
