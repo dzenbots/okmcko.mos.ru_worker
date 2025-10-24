@@ -70,6 +70,7 @@ async def send_diag_links(file: FileEntry):
 
 class OkMckoWorker:
     _school_mos_ru_url = "https://school.mos.ru"
+    _school_mos_ru_educationmanagement_url = "https://school.mos.ru/educationmanagement/routing"
     _okmcko_mos_ru_url = "https://okmcko.mos.ru/index.php"
     _headless = True
     _browser: Optional[Browser] = None
@@ -104,7 +105,8 @@ class OkMckoWorker:
             await self._init()
         if len(await self._context.cookies()) < 1:
             await self._school_mos_ru_auth(login=login, password=password)
-        await self._page.get_by_text("Организация обучения", exact=True).click()
+        # await self._page.get_by_text("Организация обучения", exact=True).click()
+        await self._page.goto(self._school_mos_ru_educationmanagement_url)
         await self._page.wait_for_selector(".T627UHU6")
         await self._page.get_by_text("Внешняя оценка", exact=True).click()
         await asyncio.sleep(1)
