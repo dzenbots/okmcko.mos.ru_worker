@@ -159,7 +159,7 @@ class OkMckoWorker:
                 await self._page.get_by_text(file.filename).click()
             download = await download_info.value
             await download.save_as(
-                f"./{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + download.suggested_filename)
+                f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + download.suggested_filename)
 
     async def send_new_files(self, login: str = settings.LOGIN, password: str = settings.PASSWORD):
         await self._download_new_files(login=login, password=password)
@@ -176,7 +176,7 @@ class OkMckoWorker:
             email["Subject"] = subject
             email.set_content(body, subtype="html")
 
-            with open(f"./{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename, "rb") as f:
+            with open(f"{settings.DWNLD_DIR_PATH}/{datetime.datetime.now().date()}/" + file.filename, "rb") as f:
                 email.add_attachment(
                     f.read(),
                     filename=file.filename,
