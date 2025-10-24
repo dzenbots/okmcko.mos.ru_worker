@@ -22,19 +22,19 @@
     - для CMD:
     ```cmd
     python -m venv .venv
-    .\venv\scripts\activate.bat
+    .\.venv\scripts\activate.bat
     pip install -r requirements.txt
     ```
     - для Powershell 
     ```powershell
     python -m venv .venv
-    .\venv\scripts\activate.ps1
+    .\.venv\scripts\activate.ps1
     pip install -r requirements.txt
     ```
     - для Bash (Linux) 
     ```shell
     python -m venv .venv
-    ./venv/bin/activate
+    ./.venv/bin/activate
     pip install -r requirements.txt
     ```
    
