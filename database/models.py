@@ -1,6 +1,6 @@
-from peewee import SqliteDatabase, Model, TextField
+from peewee import Model, TextField
 
-db = SqliteDatabase('my_app.db')
+from database import db
 
 
 class BaseModel(Model):
