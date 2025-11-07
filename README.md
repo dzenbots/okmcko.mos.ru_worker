@@ -76,6 +76,9 @@ python main.py
 ```
 
 > [!NOTE]
+>  Если в Windows при запуске позникает ошибка ```ImportError: DLL load failed ...```, то скорее всего не установлен [Распространяемый компонент Visual C++](https://learn.microsoft.com/ru-ru/cpp/windows/latest-supported-vc-redist). Прямая ссылка для скачивания - [https://aka.ms/vs/17/release/vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+
+> [!NOTE]
 > Для минимизации спама на почту и в TG-чат софтина смотрит только первые 10 строк таблицы с документами в МЦКО. Далее
 > при появлении новых документов скачивает только их. Но при первом запуске, естественно, все 10 документов будут
 > новыми.
