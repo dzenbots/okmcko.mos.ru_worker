@@ -1,4 +1,4 @@
-from collections import defaultdict
+import time
 from pathlib import Path
 
 import fitz
@@ -23,11 +23,15 @@ class PdfParser:
             if line.startswith("ЛИСТ ФИКСАЦИИ РАБОЧИХ МЕСТ"):
                 break
             if line.startswith("этаж "):
-                link_struct["kab_num"] = line
+                link_struct["kab_num"] = f"<b>Кабинет:</b> {line}"
+                continue
             if line.startswith("город "):
-                link_struct["address"] = line
-            if line.startswith("Адрес сайта диагностики:"):
-                link_struct["link"] = line
-            if line.startswith("IP:"):
-                link_struct["ip"] = line
+                link_struct["address"] = f"<b>Адрес:</b> {line}"
+                continue
+            if line.startswith("IP:") or line.startswith("Резервный сайт:"):
+                link_struct["reserve"] = f"<b>Резервный сайт:</b> {line.strip("Резервный сайт: ")}"
+                continue
+            if line.find(".mcko.ru") > -1:
+                link_struct["link"] = f"<b>Сайт:</b> {line}"
+                continue
         return link_struct

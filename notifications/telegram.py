@@ -13,6 +13,7 @@ async def send_telegram_message(
     request_data = {
         'chat_id': chat_id,
         'text': text,
+        'parse_mode': "HTML"
     }
     if message_thread_id is not None:
         request_data['message_thread_id'] = message_thread_id

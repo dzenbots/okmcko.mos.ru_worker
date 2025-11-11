@@ -55,7 +55,7 @@ async def main():
                                                         link_struct.get("address", "-"),
                                                         link_struct.get("kab_num", "-"),
                                                         link_struct.get("link", "-"),
-                                                        link_struct.get("ip", "-"),
+                                                        link_struct.get("reserve", "-"),
                                                     ]
                                                 )
                                             )
@@ -66,6 +66,10 @@ async def main():
                 await worker.close()
         except Exception as e:
             print(e)
+            try:
+                await worker.close()
+            except:
+                pass
             close_db()
 
 
