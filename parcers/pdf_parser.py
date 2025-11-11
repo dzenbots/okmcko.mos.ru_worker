@@ -30,5 +30,4 @@ class PdfParser:
                 link_struct["link"] = line
             if line.startswith("IP:"):
                 link_struct["ip"] = line
-                break
         return link_struct

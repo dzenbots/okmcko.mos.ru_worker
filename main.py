@@ -37,29 +37,29 @@ async def main():
                                 smtp_server_hostname=config.email.smtp_server,
                                 smtp_server_port=config.email.smtp_port
                             )
-                        if ("ДИАГНОСТИКА" in file.get("comment").upper() and "mcl" in file.get("filename")) or (
-                                "diag" in file.get("filename")) and file.get("filename").endswith(".zip"):
-                            archive_path = Path(file.get("download_path"))
-                            extract_path = Path(str(file.get("download_path")).strip(".zip"))
-                            Unziper().unzip_file(path=archive_path, target_path=extract_path)
-                            if config.notifications.telegram:
-                                for pdf_file in extract_path.glob("**/*.pdf"):
-                                    link_struct = PdfParser(pdf_file).get_diag_link()
-                                    if len(link_struct.keys()) > 0:
-                                        await send_telegram_message(
-                                            bot_token=config.telegram.bot_token.get_secret_value(),
-                                            chat_id=config.telegram.chat_id,
-                                            message_thread_id=config.telegram.thread_id,
-                                            text="\n".join(
-                                                [
-                                                    link_struct.get("address", "-"),
-                                                    link_struct.get("kab_num", "-"),
-                                                    link_struct.get("link", "-"),
-                                                    link_struct.get("ip", "-"),
-                                                ]
+                        if "ДИАГНОСТИКА" in file.get("comment").upper():
+                            if "КОДЫ УЧАСТНИКОВ" in file.get("comment").upper():
+                                archive_path = Path(file.get("download_path"))
+                                extract_path = Path(str(file.get("download_path")).strip(".zip"))
+                                Unziper().unzip_file(path=archive_path, target_path=extract_path)
+                                if config.notifications.telegram:
+                                    for pdf_file in extract_path.glob("**/*.pdf"):
+                                        link_struct = PdfParser(pdf_file).get_diag_link()
+                                        if len(link_struct.keys()) > 0:
+                                            await send_telegram_message(
+                                                bot_token=config.telegram.bot_token.get_secret_value(),
+                                                chat_id=config.telegram.chat_id,
+                                                message_thread_id=config.telegram.thread_id,
+                                                text="\n".join(
+                                                    [
+                                                        link_struct.get("address", "-"),
+                                                        link_struct.get("kab_num", "-"),
+                                                        link_struct.get("link", "-"),
+                                                        link_struct.get("ip", "-"),
+                                                    ]
+                                                )
                                             )
-                                        )
-                                        await asyncio.sleep(1)
+                                            await asyncio.sleep(1)
                     await asyncio.sleep(1)
             except Exception as e:
                 print(e)
